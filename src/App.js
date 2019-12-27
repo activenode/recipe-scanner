@@ -2,28 +2,32 @@ import { Component } from 'inferno';
 import Dropzone from './components/Dropzone';
 import RecipeImageMarker from './components/RecipeImageMarker';
 
-var ID = function () {
+var createId = function () {
   // Math.random should be unique because of its seeding algorithm.
   // Convert it to base 36 (numbers + letters), and grab the first 9 characters
   // after the decimal.
   return '_' + Math.random().toString(36).substr(2, 9);
 };
 
+const RecipeStepSkeleton = {
+  text: 'Just a step',
+};
 
 const RecipeIngredientSkeleton = {
+  id: createId(),
   unit: 'kg',
   amount: '0.5',
   name: 'Tomatoes'
 };
 
 const RecipeSkeleton = {
-  id: '',
+  id: createId(),
   title: '',
   ingredients: [{
     ...RecipeIngredientSkeleton
   }],
   steps: [{
-
+    ...RecipeStepSkeleton
   }]
 }
 
@@ -55,6 +59,7 @@ class App extends Component {
 
             {this.state.recipeParts.map( ( recipeWithStepsAndIngredients ) => {
               const { id, ingredients, steps, title } = recipeWithStepsAndIngredients;
+              const recipePartId = id;
 
               return (
                 <div key={id} className="recipe-part">
@@ -71,18 +76,33 @@ class App extends Component {
                     leave empty if the recipe only contains one part!
                   </small>
                   <div className="ingredients-box">
-                    { ingredients.map(({ unit, amount, name }) => {
+                    { ingredients.map(({ unit, amount, name, id: ingredientId }) => {
                       return (
                         <div className="ingredient-entry">
-                          <input type="text" value={amount} />
-                          <input type="text" value={unit} />
+                          <input type="text" value={amount} style={{ 'max-width': '80px' }} />
+                          <input type="text" value={unit} style={{ 'max-width': '80px' }} />
                           <input type="text" value={name} />
+                          <button type="button" style={{ 'flex-shrink': '10' }} onClick={e => this.removeIngredient(recipePartId, ingredientId)}>x</button>
                         </div>
                       )
                     }) }
 
                     <div>
                       <button type="button" onClick={e => this.onAddIngredient(id)}>+ Ingredient</button>
+                    </div>
+                  </div>
+
+                  <div className="recipesteps-box">
+                    { steps.map(({ text }) => {
+                      return (
+                        <div className="recipestep-entry">
+                          <textarea value={text} style={{ height: '120px' }}></textarea>
+                        </div>
+                      )
+                    }) }
+
+                    <div>
+                      <button type="button" onClick={e => this.onAddStep(id)}>+ Step</button>
                     </div>
                   </div>
                 </div>
@@ -99,7 +119,63 @@ class App extends Component {
     );
   }
 
+  removeIngredient(recipePartId, ingredientId) {
+    this.setState(prevState => {
+      const recipePartsNew = prevState.recipeParts.map( recipeWithStepsAndIngredients => {
+        const { ingredients, id: _recipePartId } = recipeWithStepsAndIngredients;
+
+        if (_recipePartId !== recipePartId) {
+          return recipeWithStepsAndIngredients;
+        }
+
+        const newIngredients = ingredients.filter(({ id: _ingredientId }) => ingredientId !== _ingredientId);
+
+        return {
+          ...recipeWithStepsAndIngredients,
+          ingredients: newIngredients
+        };
+      });
+
+      return {
+        ...prevState,
+        recipeParts: recipePartsNew
+      }
+    });
+  }
+
+  onAddStep(recipePartId) {
+    const id = createId();
+
+    this.setState(prevState => {
+      const newRecipePart = prevState.recipeParts.map( recipeWithStepsAndIngredients => {
+        const { steps, id } = recipeWithStepsAndIngredients;
+
+        if (id != recipePartId) {
+          return recipeWithStepsAndIngredients;
+        }
+
+        const newSteps = 
+          [ ...steps ]
+          .concat( [ { ...RecipeStepSkeleton, id } ]);
+
+        return {
+          ...recipeWithStepsAndIngredients,
+          steps: newSteps
+        }
+      });
+
+      return {
+        ...prevState,
+        recipeParts: [
+          ...newRecipePart
+        ]
+      }
+    })
+  }
+
   onAddIngredient(recipePartId) {
+    const id = createId();
+
     this.setState(prevState => {
       const newRecipePart = prevState.recipeParts.map( recipeWithStepsAndIngredients => {
         const { ingredients, id } = recipeWithStepsAndIngredients;
@@ -110,7 +186,7 @@ class App extends Component {
 
         const newIngredients = 
           [ ...ingredients ]
-          .concat( [ { ...RecipeIngredientSkeleton } ]);
+          .concat( [ { ...RecipeIngredientSkeleton, id } ]);
 
         return {
           ...recipeWithStepsAndIngredients,
@@ -129,7 +205,7 @@ class App extends Component {
 
   addRecipePart(e) {
     e.preventDefault();
-    const id = ID();
+    const id = createId();
 
     this.setState(prevState => {
       return {

@@ -7,12 +7,25 @@ class Dropzone extends Component {
 
   render({ children }) {
     return (
-      <div onDrop={e => this.onDrop(e)} onDragOver={e => this.onDragOver(e)} style={styles.dropzone}>
+      <div 
+        onDrop={e => this.onDrop(e)} 
+        onDragOver={e => this.onDragOver(e)} 
+        onMouseOut={e => this.resetOverlay(e)}
+        style={styles.dropzone}>
         {children}
 
         <div hidden={!this.state.showDragoverLayer} style={styles.dragoverLayer}></div>
       </div>
     );
+  }
+
+  resetOverlay(e) {
+    if (!this.state.showDragoverLayer) return false;
+
+    e.preventDefault();
+    this.setState({
+      showDragoverLayer: false
+    });
   }
 
   onDragOver(e) {
@@ -24,7 +37,9 @@ class Dropzone extends Component {
 
   onDrop(e) {
     e.preventDefault();
-    console.log('droppi', e.dataTransfer.files);
+    this.setState({
+      showDragoverLayer: false
+    });
   }
 }
 
@@ -39,7 +54,7 @@ const styles = {
     left: 0,
     width: '100vw',
     height: '100vh',
-    background: 'black'
+    background: 'rgba(0, 0, 0, 0.6)',
   }
 };
 

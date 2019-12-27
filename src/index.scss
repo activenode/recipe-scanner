@@ -43,11 +43,25 @@ fieldset {
 .ingredients-box {
   position: relative;
   background: darken(floralwhite, 10%);
+  border: 1px solid darken(floralwhite, 16%);
   padding: 2ex;
   margin-top: 2ex;
 
   &:before { 
     content: 'Ingredients';
+    font-size: 90%;
+  }
+}
+
+.recipesteps-box {
+  position: relative;
+  background: bisque;
+  padding: 2ex;
+  margin-top: 1ex;
+  border: 1px solid darken(bisque, 7%);
+
+  &:before { 
+    content: 'Recipe Steps';
     font-size: 90%;
   }
 }
