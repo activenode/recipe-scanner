@@ -102,7 +102,8 @@ class App extends Component {
                     }) }
 
                     <div>
-                      <button type="button" onClick={e => this.onAddStep(id)}>+ Step</button>
+                      <button type="button" onClick={e => this.onAddStep(id)}>+ Step</button> &nbsp; &nbsp;
+                      { steps.length > 1 && <button type="button" onClick={e => this.removeLastStep(id)}>Remove last step</button>}
                     </div>
                   </div>
                 </div>
@@ -141,6 +142,34 @@ class App extends Component {
         recipeParts: recipePartsNew
       }
     });
+  }
+
+  removeLastStep(recipePartId) {
+    const id = createId();
+
+    this.setState(prevState => {
+      const newRecipeParts = prevState.recipeParts.map( recipeWithStepsAndIngredients => {
+        const { steps, id } = recipeWithStepsAndIngredients;
+
+        if (id != recipePartId) {
+          return recipeWithStepsAndIngredients;
+        }
+
+        steps.pop();
+
+        return {
+          ...recipeWithStepsAndIngredients,
+          steps: [ ...steps ]
+        }
+      });
+
+      return {
+        ...prevState,
+        recipeParts: [
+          ...newRecipeParts
+        ]
+      }
+    })
   }
 
   onAddStep(recipePartId) {
