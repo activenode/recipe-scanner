@@ -4,7 +4,9 @@
   "private": true,
   "dependencies": {
     "inferno": "^7.3.3",
-    "inferno-scripts": "7.0.4"
+    "inferno-scripts": "7.0.4",
+    "node-sass": "^4.13.0",
+    "wingcss": "^1.0.0-beta"
   },
   "scripts": {
     "start": "inferno-scripts start",
@@ -20,5 +22,8 @@
     "not dead",
     "not ie <= 11",
     "not op_mini all"
-  ]
+  ],
+  "devDependencies": {
+    "inferno-compat": "^7.3.3"
+  }
 }
