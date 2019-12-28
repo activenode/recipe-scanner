@@ -9,9 +9,10 @@ var createId = function () {
   return '_' + Math.random().toString(36).substr(2, 9);
 };
 
-const RecipeStepSkeleton = {
+const RecipeStepSkeleton = () => ({
   text: 'Just a step',
-};
+  id: createId(),
+});
 
 const RecipeIngredientSkeleton = {
   id: createId(),
@@ -26,9 +27,7 @@ const RecipeSkeleton = {
   ingredients: [{
     ...RecipeIngredientSkeleton
   }],
-  steps: [{
-    ...RecipeStepSkeleton
-  }]
+  steps: [RecipeStepSkeleton()]
 }
 
 class App extends Component {
@@ -42,12 +41,58 @@ class App extends Component {
     /**
      * One Recipe then looks like this
      */
+    image: {
+      showEditor: false
+    }
+  }
+
+  onFileDropped(fileHandle) {
+    const files = fileHandle.files;
+    if (files.length > 1) {
+      alert('Cannot process multiple images at the same time, sorry');
+      return;
+    }
+
+    const file = fileHandle.files[0];
+
+    const isImageType = /^image.*/.test(file.type);
+
+    if (!isImageType) {
+      alert('Please drop an image');
+      return;
+    }
+
+    const _this = this;
+    const fileReader = new FileReader();
+    fileReader.onload = readingResult => {
+      const img = new Image;
+      img.onload = function() {
+        const { width, height } = this;
+ 
+        _this.setState(prevState => {
+          return {
+            ...prevState,
+            image: {
+              imageRef: img,
+              showEditor: true,
+              originalWidth: width,
+              originalHeight: height,
+            }
+          }
+        })
+      }
+      img.src = readingResult.target.result;
+      
+    };
+
+    fileReader.readAsDataURL(file);
+
   }
 
   render() {
     return (
-      <Dropzone>
-        { this.state.showRecipeImageMarker &&
+      <Dropzone onDrop={(fileHandle) => this.onFileDropped(fileHandle)}>
+        { this.state.image.showEditor &&
           <RecipeImageMarker onImageAnalysisDone={this.onImageAnalysisDone} />}
         
         <form>
@@ -145,13 +190,11 @@ class App extends Component {
   }
 
   removeLastStep(recipePartId) {
-    const id = createId();
-
     this.setState(prevState => {
       const newRecipeParts = prevState.recipeParts.map( recipeWithStepsAndIngredients => {
         const { steps, id } = recipeWithStepsAndIngredients;
 
-        if (id != recipePartId) {
+        if (id !== recipePartId) {
           return recipeWithStepsAndIngredients;
         }
 
@@ -173,19 +216,17 @@ class App extends Component {
   }
 
   onAddStep(recipePartId) {
-    const id = createId();
-
     this.setState(prevState => {
       const newRecipePart = prevState.recipeParts.map( recipeWithStepsAndIngredients => {
         const { steps, id } = recipeWithStepsAndIngredients;
 
-        if (id != recipePartId) {
+        if (id !== recipePartId) {
           return recipeWithStepsAndIngredients;
         }
 
         const newSteps = 
           [ ...steps ]
-          .concat( [ { ...RecipeStepSkeleton, id } ]);
+          .concat( [ RecipeStepSkeleton() ]);
 
         return {
           ...recipeWithStepsAndIngredients,
@@ -203,19 +244,17 @@ class App extends Component {
   }
 
   onAddIngredient(recipePartId) {
-    const id = createId();
-
     this.setState(prevState => {
       const newRecipePart = prevState.recipeParts.map( recipeWithStepsAndIngredients => {
         const { ingredients, id } = recipeWithStepsAndIngredients;
 
-        if (id != recipePartId) {
+        if (id !== recipePartId) {
           return recipeWithStepsAndIngredients;
         }
 
         const newIngredients = 
           [ ...ingredients ]
-          .concat( [ { ...RecipeIngredientSkeleton, id } ]);
+          .concat( [ { ...RecipeIngredientSkeleton, id: createId() } ]);
 
         return {
           ...recipeWithStepsAndIngredients,

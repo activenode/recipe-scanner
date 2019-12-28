@@ -8,7 +8,15 @@ class Dropzone extends Component {
   render({ children }) {
     return (
       <div 
-        onDrop={e => this.onDrop(e)} 
+        onDrop={e => {
+          e.preventDefault();
+
+          this.setState({
+            showDragoverLayer: false
+          });
+
+          this.props.onDrop(e.dataTransfer);
+        }} 
         onDragOver={e => this.onDragOver(e)} 
         onMouseOut={e => this.resetOverlay(e)}
         style={styles.dropzone}>
@@ -32,13 +40,6 @@ class Dropzone extends Component {
     e.preventDefault();
     this.setState({
       showDragoverLayer: true
-    });
-  }
-
-  onDrop(e) {
-    e.preventDefault();
-    this.setState({
-      showDragoverLayer: false
     });
   }
 }
