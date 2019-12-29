@@ -65,7 +65,7 @@ class App extends Component {
     const _this = this;
     const fileReader = new FileReader();
     fileReader.onload = readingResult => {
-      const img = new Image;
+      const img = new Image();
       img.onload = function() {
         const { width, height } = this;
  
@@ -93,7 +93,7 @@ class App extends Component {
     return (
       <Dropzone onDrop={(fileHandle) => this.onFileDropped(fileHandle)}>
         { this.state.image.showEditor &&
-          <RecipeImageMarker onImageAnalysisDone={this.onImageAnalysisDone} />}
+          <RecipeImageMarker imageData={this.state.image} onImageAnalysisDone={this.onImageAnalysisDone} />}
         
         <form>
           <fieldset>
