@@ -1,9 +1,14 @@
 import { Component } from 'inferno';
 
+var createId = function () {
+  const t = +(new Date());
+  return '_' + Math.random().toString(36).substr(2, 9) + '_' + t;
+};
+
 class RecipeImageMarker extends Component {
   canvasElement = null;
   currentScaleFactor = 1;
-  pointerDragActive = false;
+  selectionCreationPointerActive = false;
 
   lastImageId = null;
 
@@ -13,10 +18,30 @@ class RecipeImageMarker extends Component {
   currentDragY = 0;
   imageSelectionsBoxX = 0;
   imageSelectionsBoxY = 0;
+  imageSelectionsBoxWidth = 0;
+  imageSelectionsBoxHeight = 0;
   currentDragSelectionDimensions = {};
+
+  moveExistingSelectionData = {
+    active: false,
+    selectionId: null,
+    draggedElement: null,
+    dragStartX: 0,
+    dragStartY: 0,
+    currentDragX: 0,
+    currentDragY: 0,
+    draggedElementOriginalX: 0,
+    draggedElementOriginalY: 0,
+    draggedElementOriginalWidth: 0,
+    draggedElementOriginalHeight: 0,
+  }
 
   state = {
     imageSelections: []
+  }
+
+  closeEditor() {
+    this.props.onClickClose();
   }
 
   onUpdate() {
@@ -55,6 +80,9 @@ class RecipeImageMarker extends Component {
 
     this.canvasElement.setAttribute('width', drawWidth);
     this.canvasElement.setAttribute('height', drawHeight);
+
+    this.imageSelectionsBoxWidth = drawWidth;
+    this.imageSelectionsBoxHeight = drawHeight;
   }
 
   componentDidUpdate() {
@@ -78,8 +106,37 @@ class RecipeImageMarker extends Component {
     }
   }
 
+  startDragExistingSelection(pointerDownEvent, selectionId) {
+    pointerDownEvent.preventDefault();
+    pointerDownEvent.stopPropagation();
+
+    const { clientX, clientY } =  pointerDownEvent;
+
+    if (clientY < this.imageSelectionsBoxY || clientX < this.imageSelectionsBoxX) {
+      // should never happen but well its covered
+      return;
+    }
+
+    this.moveExistingSelectionData.id = selectionId;
+    this.moveExistingSelectionData.active = true;
+    this.moveExistingSelectionData.dragStartX = clientX;
+    this.moveExistingSelectionData.dragStartY = clientY;
+    this.moveExistingSelectionData.draggedElement = pointerDownEvent.target.parentNode;
+    const { left, top, width, height } = this.moveExistingSelectionData.draggedElement.getBoundingClientRect();
+
+    const relativeLeft = left - this.imageSelectionsBoxX;
+    const relativeTop = top - this.imageSelectionsBoxY;
+
+    this.moveExistingSelectionData.draggedElementOriginalX = relativeLeft;
+    this.moveExistingSelectionData.draggedElementOriginalY = relativeTop;
+    this.moveExistingSelectionData.draggedElementOriginalX = relativeLeft;
+    this.moveExistingSelectionData.draggedElementOriginalY = relativeTop;
+    this.moveExistingSelectionData.draggedElementOriginalWidth = width;
+    this.moveExistingSelectionData.draggedElementOriginalHeight = height;
+  }
+
   startCreateSelection(pointerDownEvent) {
-    if (this.pointerDragActive) {
+    if (this.selectionCreationPointerActive || this.moveExistingSelectionData.active) {
       return false;
     }
     pointerDownEvent.preventDefault();
@@ -90,7 +147,7 @@ class RecipeImageMarker extends Component {
       return;
     }
 
-    this.pointerDragActive = true;
+    this.selectionCreationPointerActive = true;
     this.dragStartX = clientX;
     this.dragStartY = clientY;
 
@@ -100,48 +157,78 @@ class RecipeImageMarker extends Component {
     this.ghostBoxElement.style.display = 'block';
     this.ghostBoxElement.style.left = `${relativeX}px`;
     this.ghostBoxElement.style.top = `${relativeY}px`;
-    
+  }
+
+  dragNewSelectionCreation(moveEvent) {
+    moveEvent.preventDefault();
+
+    const { clientX, clientY } =  moveEvent;
+    this.currentDragX = clientX;
+    this.currentDragY = clientY;
+
+    const relativeX_ofPointerPosition = clientX - this.imageSelectionsBoxX;
+    const relativeY_ofPointerPosition = clientY - this.imageSelectionsBoxY;
+
+    const relativeX_ofStartingPosition = this.dragStartX - this.imageSelectionsBoxX;
+    const relativeY_ofStartingPosition = this.dragStartY - this.imageSelectionsBoxY;
+
+    const 
+      width = Math.abs(relativeX_ofPointerPosition - relativeX_ofStartingPosition),
+      height = Math.abs(relativeY_ofPointerPosition - relativeY_ofStartingPosition),
+      left = Math.min(relativeX_ofStartingPosition, relativeX_ofPointerPosition),
+      top = Math.min(relativeY_ofStartingPosition, relativeY_ofPointerPosition);
+
+    this.currentDragSelectionDimensions = {
+      width,
+      height,
+      left,
+      top,
+    };
+
+    this.ghostBoxElement.style.top = `${top}px`;
+    this.ghostBoxElement.style.left = `${left}px`;
+    this.ghostBoxElement.style.width = `${width}px`;
+    this.ghostBoxElement.style.height = `${height}px`;
+  }
+
+  dragExistingSelection(moveEvent) {
+    moveEvent.preventDefault();
+
+    const { clientX, clientY } =  moveEvent;
+
+    const movedDistanceX = clientX - this.moveExistingSelectionData.dragStartX;
+    const movedDistanceY = clientY - this.moveExistingSelectionData.dragStartY;
+
+    const newLeft = this.moveExistingSelectionData.draggedElementOriginalX + movedDistanceX;
+    const newTop = this.moveExistingSelectionData.draggedElementOriginalY + movedDistanceY;
+
+    const maxLeft = this.imageSelectionsBoxWidth - this.moveExistingSelectionData.draggedElementOriginalWidth;
+    const maxTop = this.imageSelectionsBoxHeight - this.moveExistingSelectionData.draggedElementOriginalHeight;
+
+    this.moveExistingSelectionData.draggedElement.style.left 
+      =  `${Math.min(Math.max(0,newLeft), maxLeft)}px`;
+    this.moveExistingSelectionData.draggedElement.style.top 
+      = `${Math.min(Math.max(0, newTop), maxTop)}px`;
   }
 
   dragSelection(moveEvent) {
-    if (this.pointerDragActive) {
-      moveEvent.preventDefault();
-
-      const { clientX, clientY } =  moveEvent;
-      this.currentDragX = clientX;
-      this.currentDragY = clientY;
-
-      const relativeX_ofPointerPosition = clientX - this.imageSelectionsBoxX;
-      const relativeY_ofPointerPosition = clientY - this.imageSelectionsBoxY;
-
-      const relativeX_ofStartingPosition = this.dragStartX - this.imageSelectionsBoxX;
-      const relativeY_ofStartingPosition = this.dragStartY - this.imageSelectionsBoxY;
-
-      const 
-        width = Math.abs(relativeX_ofPointerPosition - relativeX_ofStartingPosition),
-        height = Math.abs(relativeY_ofPointerPosition - relativeY_ofStartingPosition),
-        left = Math.min(relativeX_ofStartingPosition, relativeX_ofPointerPosition),
-        top = Math.min(relativeY_ofStartingPosition, relativeY_ofPointerPosition);
-
-      this.currentDragSelectionDimensions = {
-        width,
-        height,
-        left,
-        top,
-      };
-
-      this.ghostBoxElement.style.top = `${top}px`;
-      this.ghostBoxElement.style.left = `${left}px`;
-      this.ghostBoxElement.style.width = `${width}px`;
-      this.ghostBoxElement.style.height = `${height}px`;
+    if (this.selectionCreationPointerActive) {
+      this.dragNewSelectionCreation(moveEvent);
+    } else if (this.moveExistingSelectionData.active) {
+      this.dragExistingSelection(moveEvent);
     }
   }
 
   stopCreateSelection(pointerUpEvent) {
+    if (!this.selectionCreationPointerActive) {
+      return;
+    }
+
     if (pointerUpEvent) {
       pointerUpEvent.preventDefault()
     }
-    this.pointerDragActive = false;
+
+    this.selectionCreationPointerActive = false;
     this.ghostBoxElement.style.display = 'none';
     this.ghostBoxElement.style.width = '0';
     this.ghostBoxElement.style.height = '0';
@@ -188,6 +275,7 @@ class RecipeImageMarker extends Component {
         imageSelections: [
           ...existingSelections,
           {
+            id: createId(),
             ...percentageCssValues,
           }
         ]
@@ -201,7 +289,7 @@ class RecipeImageMarker extends Component {
         <div style={style.editorLayer}>
           <div style={style.imgEditorContainer}>
             <canvas 
-              ref={el => this.canvasRefCallback(el)} style={{ width: '100%', border: '4px dashed black' }}>
+              ref={el => this.canvasRefCallback(el)} style={{ width: '100%', border: '2px solid black' }}>
 
             </canvas>
             <div 
@@ -210,11 +298,11 @@ class RecipeImageMarker extends Component {
               onPointerUp={e => this.stopCreateSelection(e)}
               onPointerMove={e => this.dragSelection(e)}>
               {this.state.imageSelections.map( selection => {
-                const { left, top, width, height } = selection;
-                console.log('selection', selection);
+                const { left, top, width, height, id } = selection;
                 return (
                   <div style={{...(style.selection), left, top, width, height}}>
-                    
+                    <div style={style.selectionDragger} 
+                      onPointerDown={e => this.startDragExistingSelection(e, id)}></div>
                   </div>
                 )
               })}
@@ -224,7 +312,9 @@ class RecipeImageMarker extends Component {
           </div>
 
           <div style={style.editorMenu}>
-            <a role='button' style={style.editorMenuBtn}>x</a>
+            <a role='button' 
+              style={style.editorMenuBtn} 
+              onClick={e => this.closeEditor()}>x</a>
           </div>
         </div>
       </div>
@@ -286,6 +376,18 @@ const style = {
   },
   selection: {
 
+  },
+  selectionDragger: {
+    position: 'absolute',
+    top: '-6px',
+    left: '-6px',
+    width: '12px',
+    height: '12px',
+    cursor: 'move',
+    background: 'red',
+    'border-radius': '6px',
+    'opacity': '0.7',
+    'border': '1px solid black'
   }
 }
 
@@ -293,6 +395,7 @@ style.selection = {
   ...(style.ghostBoxElement),
   'border-style': 'dashed',
   'display': 'block',
+  'box-shadow': '1px 1px 3px rgba(0,0,0,0.2)',
 };
 
 

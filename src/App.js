@@ -3,10 +3,8 @@ import Dropzone from './components/Dropzone';
 import RecipeImageMarker from './components/RecipeImageMarker';
 
 var createId = function () {
-  // Math.random should be unique because of its seeding algorithm.
-  // Convert it to base 36 (numbers + letters), and grab the first 9 characters
-  // after the decimal.
-  return '_' + Math.random().toString(36).substr(2, 9);
+  const t = +(new Date());
+  return '_' + Math.random().toString(36).substr(2, 9) + '_' + t;
 };
 
 const RecipeStepSkeleton = () => ({
@@ -87,14 +85,30 @@ class App extends Component {
     };
 
     fileReader.readAsDataURL(file);
+  }
 
+  onClickCloseEditor() {
+    this.setState(state => {
+      const image = state.image;
+
+      return {
+        ...state,
+        image: {
+          ...image,
+          showEditor: false,
+        }
+      }
+    });
   }
 
   render() {
     return (
       <Dropzone onDrop={(fileHandle) => this.onFileDropped(fileHandle)}>
         { this.state.image.showEditor &&
-          <RecipeImageMarker imageData={this.state.image} onImageAnalysisDone={this.onImageAnalysisDone} />}
+          <RecipeImageMarker 
+            imageData={this.state.image} 
+            onImageAnalysisDone={this.onImageAnalysisDone}
+            onClickClose={e => this.onClickCloseEditor()} />}
         
         <form>
           <fieldset>
