@@ -215,7 +215,7 @@ class RecipeImageMarker extends Component {
     newTop = Math.min(Math.max(0, newTop), maxTop);
 
     this.moveExistingSelectionData.lastNewLeft = newLeft;
-    this.moveExistingSelectionData.lastNewTop = newLeft;
+    this.moveExistingSelectionData.lastNewTop = newTop;
 
     this.setState(prevState => {
       const imageSelectionsNew = prevState.imageSelections.map( s => {
@@ -305,29 +305,33 @@ class RecipeImageMarker extends Component {
       return;
     }
 
-
     const { width: widthToRelateTo, height: heightToRelateTo } = this.canvasElement.getBoundingClientRect();
-    
-    const _idOfSelection = this.moveExistingSelectionData.selectionId;
     const relativeX = this.moveExistingSelectionData.lastNewLeft / widthToRelateTo;
     const relativeY = this.moveExistingSelectionData.lastNewTop / heightToRelateTo;
 
-    // reset!
-    this.moveExistingSelectionData = {
-      ...MoveExistingSelectionDataSkeleton
-    }
-
     this.setState(prevState => {
-      console.log('updating set state');
-      const imageSelectionsNew = prevState.imageSelections.map( imageSelection => {
-        return imageSelection;
+      const imageSelectionsNew = prevState.imageSelections.map( s => {
+        if (s.id !== this.moveExistingSelectionData.selectionId) {
+          return s;
+        }
+
+        return {
+          ...s,
+          left: `${relativeX * 100}%`,
+          top: `${relativeY * 100}%`,
+        };
       })
 
       return {
         ...prevState,
         imageSelections: [...imageSelectionsNew]
       }
-    })
+    });
+
+    // reset!
+    this.moveExistingSelectionData = {
+      ...MoveExistingSelectionDataSkeleton
+    }
   }
 
   stopDragByPointerUp(pointerUpEvent) {
