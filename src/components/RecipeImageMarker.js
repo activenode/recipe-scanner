@@ -142,6 +142,11 @@ class RecipeImageMarker extends Component {
   }
 
   startCreateSelection(pointerDownEvent) {
+    if (pointerDownEvent.target.classList.contains('remove')) {
+      // do not catch, just go on
+      return;
+    }
+    
     if (this.selectionCreationPointerActive || this.moveExistingSelectionData.active) {
       return false;
     }
@@ -350,6 +355,26 @@ class RecipeImageMarker extends Component {
     }
   }
 
+  removeSelection(e, id) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    this.setState(prevState => {
+      const imageSelectionsNew = prevState.imageSelections.filter(s => {
+        if (s.id !== id) {
+          return true;
+        }
+
+        return false;
+      });
+
+      return {
+        ...prevState,
+        imageSelections: [ ...imageSelectionsNew ]
+      }
+    })
+  }
+
   render() {
     return (
       <div>
@@ -371,6 +396,8 @@ class RecipeImageMarker extends Component {
                   <div style={{...(style.selection), left, top, width, height}}>
                     <div style={style.selectionDragger} 
                       onPointerDown={e => this.startDragExistingSelection(e, id)}></div>
+                    <div className='remove' style={style.selectionRemover} 
+                      onClick={e => this.removeSelection(e, id)}>x</div>
                   </div>
                 )
               })}
@@ -455,6 +482,22 @@ const style = {
     background: 'red',
     'border-radius': '6px',
     'opacity': '0.7',
+    'border': '1px solid black'
+  },
+  selectionRemover: {
+    position: 'absolute',
+    top: '-8px',
+    right: '-8px',
+    width: '16px',
+    height: '16px',
+    cursor: 'move',
+    background: 'black',
+    color: 'white',
+    'font-size': '11px',
+    'line-height': '14px',
+    'text-align': 'center',
+    'border-radius': '6px',
+    'opacity': '0.8',
     'border': '1px solid black'
   }
 }
