@@ -73,6 +73,7 @@ class App extends Component {
           return {
             ...prevState,
             image: {
+              id: createId(),
               imageRef: img,
               showEditor: true,
               originalWidth: width,
