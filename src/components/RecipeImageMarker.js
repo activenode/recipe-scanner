@@ -1,4 +1,5 @@
 import { Component } from 'inferno';
+import { nextFrame } from '../lib/frame';
 
 var createId = function () {
   const t = +(new Date());
@@ -28,6 +29,8 @@ class RecipeImageMarker extends Component {
 
   lastImageId = null;
 
+  analysisHelperCanvasElement = null;
+
   dragStartX = 0;
   dragStartY = 0;
   currentDragX = 0;
@@ -43,7 +46,8 @@ class RecipeImageMarker extends Component {
   }
 
   state = {
-    imageSelections: []
+    imageSelections: [],
+    showAnalysisHelperLayer: false,
   }
 
   closeEditor() {
@@ -142,7 +146,8 @@ class RecipeImageMarker extends Component {
   }
 
   startCreateSelection(pointerDownEvent) {
-    if (pointerDownEvent.target.classList.contains('remove')) {
+    if (pointerDownEvent.target.classList.contains('remove') ||
+    pointerDownEvent.target.nodeName.toLowerCase() === 'input') {
       // do not catch, just go on
       return;
     }
@@ -299,6 +304,7 @@ class RecipeImageMarker extends Component {
           {
             id: createId(),
             ...percentageCssValues,
+            inputValue: '',
           }
         ]
       }
@@ -375,6 +381,28 @@ class RecipeImageMarker extends Component {
     })
   }
 
+  onChangeInputOnSelection(evt, selectionId) {
+    evt.preventDefault();
+
+    this.setState(prevState => {
+      const imageSelectionsNew = prevState.imageSelections.map(s => {
+        if (s.id !== selectionId) {
+          return s;
+        } else {
+          return {
+            ...s,
+            inputValue: evt.target.value
+          }
+        }
+      });
+      
+      return {
+        ...prevState,
+        imageSelections: imageSelectionsNew
+      }
+    });
+  }
+
   render() {
     return (
       <div>
@@ -390,7 +418,7 @@ class RecipeImageMarker extends Component {
               onPointerUp={e => this.stopDragByPointerUp(e)}
               onPointerMove={e => this.dragSelection(e)}>
               {this.state.imageSelections.map( selection => {
-                const { left, top, width, height, id } = selection;
+                const { left, top, width, height, id, inputValue } = selection;
 
                 return (
                   <div style={{...(style.selection), left, top, width, height}}>
@@ -398,6 +426,11 @@ class RecipeImageMarker extends Component {
                       onPointerDown={e => this.startDragExistingSelection(e, id)}></div>
                     <div className='remove' style={style.selectionRemover} 
                       onClick={e => this.removeSelection(e, id)}>x</div>
+                    <input 
+                      value={inputValue} 
+                      type='text' 
+                      style={style.miniInputBoxed}
+                      onInput={e => this.onChangeInputOnSelection(e, id)} />
                   </div>
                 )
               })}
@@ -407,13 +440,82 @@ class RecipeImageMarker extends Component {
           </div>
 
           <div style={style.editorMenu}>
-            <a role='button' 
+            <div role='button' 
               style={style.editorMenuBtn} 
-              onClick={e => this.closeEditor()}>x</a>
+              onClick={e => this.closeEditor()}>x</div>
+            {this.state.imageSelections.length > 0 && <div role='button' 
+              style={style.editorMenuBtn} 
+              onClick={e => this.requestAnalysis()}>start analysis</div>}
           </div>
+        </div>
+
+        <div className='analysis-helper-layer' style={{
+          ...(style.analysisHelperLayer),
+          display: this.state.showAnalysisHelperLayer ? 'block' : 'none'
+        }}>
+          <canvas ref={elem => this.setAnalysisHelperCanvas(elem)}></canvas>
         </div>
       </div>
     );
+  }
+
+  setAnalysisHelperCanvas(elem) {
+    this.analysisHelperCanvasElement = elem;
+  }
+
+  async readImagePart( selection, { originalHeight, originalWidth, imageRef } ) {
+    return new Promise(res => {
+      console.log('sel', selection);
+      const widthInPixels = Math.round((parseFloat(selection.width) / 100) * originalWidth);
+      const heightInPixels = Math.round((parseFloat(selection.height) / 100) * originalHeight);
+      const topInPixels = (parseFloat(selection.top) / 100) * originalHeight;
+      const leftInPixels = (parseFloat(selection.left) / 100) * originalWidth;
+
+      const c = this.analysisHelperCanvasElement;
+      const ctx = c.getContext('2d');
+      c.setAttribute('width', widthInPixels);
+      c.setAttribute('height', heightInPixels);
+
+      nextFrame(() => {
+        ctx.clearRect(0, 0, widthInPixels, heightInPixels);
+        ctx.drawImage(imageRef, leftInPixels, topInPixels, widthInPixels, heightInPixels, 0, 0, widthInPixels, heightInPixels);
+
+        res(c.toDataURL('image/jpeg', 0.7));
+      });
+    });
+  }
+
+  async readImageParts({ imageSelections, originalHeight, originalWidth, imageRef }) {
+    for (let i = 0; i < imageSelections.length; i++) {
+      const dataURL = await this.readImagePart( imageSelections[i], { originalHeight, originalWidth, imageRef } );
+      console.log('dataURL', dataURL);
+    }
+  }
+
+  requestAnalysis() {
+    if (this.state.imageSelections.length === 0) {
+      alert('You gotta make some selections on the image');
+      return;
+    }
+
+    const c = this.analysisHelperCanvasElement;
+
+    this.setState(prevState => {
+      return {
+        ...prevState,
+        showAnalysisHelperLayer: true,
+      }
+    });
+
+    const { originalHeight, originalWidth, imageRef } = this.props.imageData;
+    this.readImageParts({
+      imageSelections: this.state.imageSelections,
+      originalHeight,
+      originalWidth,
+      imageRef
+    }).then(imagePartsRead => {
+      console.log('imagePartsRead', imagePartsRead);
+    })
   }
 }
 
@@ -445,9 +547,7 @@ const style = {
     'z-index': '21',
   },
   editorMenu: {
-    background: 'rgba(0,0,0,0.8)',
-    padding: '1ex',
-    width: '50px',
+    width: '70px',
     position: 'fixed',
     top: '4ex',
     right: '10px',
@@ -456,9 +556,16 @@ const style = {
     'flex-direction': 'column',
   },
   editorMenuBtn: {
+    cursor: 'pointer',
+    background: 'rgba(0,0,0,0.8)',
+    'border-radius': '5px',
+    padding: '1ex',
     display: 'block',
     color: 'white',
-    'text-align': 'center'
+    'text-align': 'center',
+    'margin-bottom': '2ex',
+    'line-height': '13px',
+    'font-size': '12px'
   },
   ghostBoxElement: {
     'box-sizing': 'border-box',
@@ -490,7 +597,7 @@ const style = {
     right: '-8px',
     width: '14px',
     height: '14px',
-    cursor: 'move',
+    cursor: 'pointer',
     background: 'black',
     color: 'white',
     'font-size': '11px',
@@ -499,6 +606,27 @@ const style = {
     'border-radius': '6px',
     'opacity': '0.8',
     'border': '1px solid black'
+  },
+  miniInputBoxed: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    margin: 0,
+    padding: '0.3ex',
+    'font-size': '11px',
+    'font-weight': 'bold',
+    'max-width': '50px',
+    'border': '0',
+    'outline': 'none',
+  },
+  analysisHelperLayer: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+    'z-index': '22',
+    background: 'rgba(0,0,0,0.9)',
   }
 }
 
