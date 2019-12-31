@@ -486,10 +486,18 @@ class RecipeImageMarker extends Component {
   }
 
   async readImageParts({ imageSelections, originalHeight, originalWidth, imageRef }) {
+    const imagePartsCollected = [];
+
     for (let i = 0; i < imageSelections.length; i++) {
+      let { inputValue } = imageSelections[i];
+      inputValue = (inputValue || '').trim();
+
       const dataURL = await this.readImagePart( imageSelections[i], { originalHeight, originalWidth, imageRef } );
-      console.log('dataURL', dataURL);
+
+      imagePartsCollected.push({ dataURL, inputValue });
     }
+
+    return imagePartsCollected;
   }
 
   requestAnalysis() {
