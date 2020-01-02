@@ -1,5 +1,6 @@
 import { Component } from 'inferno';
 import { nextFrame } from '../lib/frame';
+import { ocrByBase64Image } from '../lib/ocr';
 
 var createId = function () {
   const t = +(new Date());
@@ -62,6 +63,7 @@ class RecipeImageMarker extends Component {
   state = {
     imageSelections: [],
     showStep2_confirmImageCuts: false,
+    isOcrStep: false,
   }
 
   closeEditor() {
@@ -417,6 +419,24 @@ class RecipeImageMarker extends Component {
     });
   }
 
+  goBackToSelectionStep() {
+    this.setState(prevState => {
+      return {
+        ...prevState,
+        showStep2_confirmImageCuts: false,
+      }
+    })
+  }
+
+  goToOcrStep() {
+    this.setState(prevState => {
+      return {
+        ...prevState,
+        isOcrStep: true,
+      }
+    });
+  }
+
   render() {
     return (
       <div>
@@ -470,9 +490,17 @@ class RecipeImageMarker extends Component {
           <canvas hidden ref={elem => this.setAnalysisHelperCanvas(elem)}></canvas>
 
           {this.state.imagePartsRead && <div style={{ padding: '3ex' }} className='list-imagecut-previews'>
+            
             <div style={style.topBtnBar}>
-              <button style={{ border: '1px solid #333', background: '#9a0f61'}} type='button'>Go back</button>
-              <button style={{ border: '1px solid #333', background: '#9a0f61'}} type='button'>Confirm Selections</button>
+              {!this.state.isOcrStep && <button
+                onClick={e => this.goBackToSelectionStep(e)}
+                style={{ border: '1px solid #333', background: '#9a0f61', 'cursor': 'pointer' }} type='button'>Go back</button>}
+              {!this.state.isOcrStep && <button 
+                onClick={e => this.goToOcrStep(e)}
+                style={{ border: '1px solid #333', background: '#49a96c', 'cursor': 'pointer'}} type='button'>Confirm Selections</button>}
+              {this.state.isOcrStep && <button 
+                disabled={true}
+                style={{ border: '1px solid #333', background: 'grey'}} type='button'>Processing...</button>}
             </div>
             
             <h2 style={{ color: 'yellow', 'font-size': '28px', 'font-weight': 500, 'padding-top': '80px' }}>
@@ -498,13 +526,12 @@ class RecipeImageMarker extends Component {
                     <h3 style={{ color: 'white', 'font-size': '21px', 'font-weight': 'bold' }}>{title}</h3>
                     {this.state[key].map(imagePart => {
                       return (
-                        <div style={{ display: 'flex' }}>
+                        <div style={{ display: 'flex', 'background': '#313131bd', padding: '2ex' }}>
                           <img 
                             alt=''
                             src={imagePart.dataURL} style={{ 
                               'max-width': '300px', 
                               'border': '2px solid red', 
-                              'margin-bottom': '3ex',
                               cursor: 'pointer', 
                             }}
                             onClick={() => openPreviewOfDataUrl(imagePart.dataURL)} 
@@ -628,10 +655,30 @@ class RecipeImageMarker extends Component {
 
       const imagePartsIngredients = _imagePartsRead.filter(({ inputValue }) => {
         return ingredientRx.test(inputValue);
+      }).sort((a, b) => {
+        if (a.group < b.group) {
+          return -1;
+        }
+
+        if (a.group > b.group) {
+          return 1;
+        }
+
+        return 0;
       });
 
       const imagePartsDescriptionTexts = _imagePartsRead.filter(({ inputValue }) => {
         return !ingredientRx.test(inputValue);
+      }).sort((a, b) => {
+        if (a.group < b.group) {
+          return -1;
+        }
+
+        if (a.group > b.group) {
+          return 1;
+        }
+
+        return 0;
       });
 
       this.setState(prevState => {
@@ -642,24 +689,6 @@ class RecipeImageMarker extends Component {
           imagePartsDescriptionTexts,
         }
       });
-
-      /*const isIngredient = true;
-      const formData = new FormData();
-      formData.append('language', 'ger');
-      formData.append('apikey', '');
-      formData.append('base64Image', imagePartsRead[0].dataURL);
-      formData.append('isTable', isIngredient);
-
-      fetch('https://api.ocr.space/parse/image', {
-        method: 'POST',
-        mode: 'cors',
-        cache: 'no-cache',
-        body: formData
-      })
-      .then((response) => response.json())
-      .then(jsonResult => {
-        console.log('sis is se result', jsonResult);
-      });*/
     })
   }
 }
@@ -776,6 +805,7 @@ const style = {
   },
   topBtnBar: {
     display: 'flex', 
+    'justify-content': 'space-between',
     background: 'black',
     'border-bottom': '1px solid grey',
     position: 'fixed',
