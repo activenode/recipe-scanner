@@ -291,6 +291,13 @@ class RecipeImageMarker extends Component {
       top,
     } = this.currentDragSelectionDimensions;
 
+    console.log('width22', {
+      width,
+      height,
+      left,
+      top,
+    })
+
     if (!width || !height || width < 5 || height < 5) {
       // no valid selection
       return;
@@ -489,7 +496,7 @@ class RecipeImageMarker extends Component {
         }}>
           <canvas hidden ref={elem => this.setAnalysisHelperCanvas(elem)}></canvas>
 
-          {this.state.imagePartsRead && <div style={{ padding: '3ex' }} className='list-imagecut-previews'>
+          {this.state.imagePartsRead && <div style={{ padding: '100px 3ex 3ex 3ex' }} className='list-imagecut-previews'>
             
             <div style={style.topBtnBar}>
               {!this.state.isOcrStep && <button
@@ -503,10 +510,10 @@ class RecipeImageMarker extends Component {
                 style={{ border: '1px solid #333', background: 'grey'}} type='button'>Processing...</button>}
             </div>
             
-            <h2 style={{ color: 'yellow', 'font-size': '28px', 'font-weight': 500, 'padding-top': '80px' }}>
+            {!this.state.isOcrStep && <h2 style={{ color: 'yellow', 'font-size': '28px', 'font-weight': 500, 'padding-top': '0' }}>
               Please make sure that your cuts are proper. If not, go back and adapt.
               <small style={{ 'display': 'block', 'font-size': '57%' }}>The sizes you see are just previews. These are not the actual cut sizes. Click on one to see the preview.</small>
-            </h2>
+            </h2>}
 
             {(() => {
               const splitupParts = [
@@ -523,7 +530,8 @@ class RecipeImageMarker extends Component {
               return splitupParts.map(({key, title}) => {
                 return (
                   <div>
-                    <h3 style={{ color: 'white', 'font-size': '21px', 'font-weight': 'bold' }}>{title}</h3>
+                    {this.state[key] && this.state[key].length > 0 && 
+                      <h3 style={{ color: 'white', 'font-size': '21px', 'font-weight': 'bold' }}>{title}</h3>}
                     {this.state[key].map(imagePart => {
                       return (
                         <div style={{ display: 'flex', 'background': '#313131bd', padding: '2ex' }}>
