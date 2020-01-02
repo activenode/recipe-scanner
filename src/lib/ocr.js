@@ -12,14 +12,11 @@ export function ocrByBase64Image({
     formData.append('base64Image', dataURL);
     formData.append('isTable', isIngredient);
 
-    fetch('https://api.ocr.space/parse/image', {
+    return fetch('https://api.ocr.space/parse/image', {
         method: 'POST',
         mode: 'cors',
         cache: 'no-cache',
         body: formData
     })
     .then((response) => response.json())
-    .then(jsonResult => {
-        console.log('sis is se result', jsonResult);
-    });
 }

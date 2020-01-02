@@ -15,6 +15,17 @@ function openPreviewOfDataUrl(dataURL) {
   w.document.write(image.outerHTML);
 }
 
+const splitupParts = [
+  {
+    key: 'imagePartsIngredients',
+    title: 'Ingredients',
+  },
+  {
+    key: 'imagePartsDescriptionTexts',
+    title: 'Description Texts',
+  }
+];
+
 const Rx = {
   descOrIngredient: /^(i|d)(,[123456789])?$/,
   ingredient: /^i,[123456789]?$/,
@@ -291,14 +302,7 @@ class RecipeImageMarker extends Component {
       top,
     } = this.currentDragSelectionDimensions;
 
-    console.log('width22', {
-      width,
-      height,
-      left,
-      top,
-    })
-
-    if (!width || !height || width < 5 || height < 5) {
+    if (!width || !height || width < 10 || height < 10) {
       // no valid selection
       return;
     }
@@ -316,6 +320,8 @@ class RecipeImageMarker extends Component {
       left: `${100 * relativeX}%`,
       top: `${100 * relativeY}%`,
     };
+
+    this.currentDragSelectionDimensions = {};
 
     this.setState(prevState => {
       const existingSelections = prevState.imageSelections;
@@ -442,6 +448,48 @@ class RecipeImageMarker extends Component {
         isOcrStep: true,
       }
     });
+
+    const ocrPromise = Promise.all(splitupParts.map( ({ key }) => {
+      return new Promise( resolveAll => {
+        const imageParts = this.state[key];
+
+        Promise.all(imageParts.map( imagePart => {
+          return ocrByBase64Image({
+            isIngredient: imagePart.isIngredient,
+            dataURL: imagePart.dataURL,
+          }).then(jsonResult => {
+            const ocrResult = jsonResult.ParsedResults && jsonResult.ParsedResults[0] ? jsonResult.ParsedResults[0] : 'N/A';
+            return {
+              ...imagePart,
+              ocrResult,
+            };
+          })
+        })).then( imagePartsWithOcrResults => {
+          resolveAll({
+            [key]: imagePartsWithOcrResults
+          });
+        });
+      });
+    }));
+
+    ocrPromise.then(ocrTotalResult => {
+      // we get an array of objects containing a key which points to the results.
+      // we want to merge those to one object.
+
+      return ocrTotalResult.reduce((acc, curr) => {
+        return {
+          ...acc,
+          ...curr,
+        }
+      }, {});
+    }).then( flattenedResult => {
+      this.setState(prevState => {
+
+        return {
+          ...prevState,
+        };
+      })
+    })
   }
 
   render() {
@@ -516,17 +564,6 @@ class RecipeImageMarker extends Component {
             </h2>}
 
             {(() => {
-              const splitupParts = [
-                {
-                  key: 'imagePartsIngredients',
-                  title: 'Ingredients',
-                },
-                {
-                  key: 'imagePartsDescriptionTexts',
-                  title: 'Description Texts',
-                }
-              ];
-
               return splitupParts.map(({key, title}) => {
                 return (
                   <div>
@@ -653,16 +690,17 @@ class RecipeImageMarker extends Component {
       const _imagePartsRead = imagePartsRead.map( imagePart => {
         const matched = imagePart.inputValue.match(Rx.groupNumberMatcher);
         let group = matched ? matched[1] : 0;
+        const isIngredient = Rx.ingredient.test(imagePart.inputValue);;
+
         return {
           ...imagePart,
           group,
+          isIngredient,
         }
       });
 
-      const ingredientRx = Rx.ingredient;
-
       const imagePartsIngredients = _imagePartsRead.filter(({ inputValue }) => {
-        return ingredientRx.test(inputValue);
+        return Rx.ingredient.test(inputValue);
       }).sort((a, b) => {
         if (a.group < b.group) {
           return -1;
@@ -676,7 +714,7 @@ class RecipeImageMarker extends Component {
       });
 
       const imagePartsDescriptionTexts = _imagePartsRead.filter(({ inputValue }) => {
-        return !ingredientRx.test(inputValue);
+        return !Rx.ingredient.test(inputValue);
       }).sort((a, b) => {
         if (a.group < b.group) {
           return -1;
