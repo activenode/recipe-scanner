@@ -6,6 +6,20 @@ var createId = function () {
   return '_' + Math.random().toString(36).substr(2, 9) + '_' + t;
 };
 
+function openPreviewOfDataUrl(dataURL) {
+  var image = new Image();
+  image.src = dataURL;
+
+  var w = window.open("");
+  w.document.write(image.outerHTML);
+}
+
+const Rx = {
+  descOrIngredient: /^(i|d)(,[123456789])?$/,
+  ingredient: /^i,[123456789]?$/,
+  groupNumberMatcher: /^(?:i|d),([123456789])?$/,
+}
+
 const MoveExistingSelectionDataSkeleton = {
   active: false,
   selectionId: null,
@@ -47,7 +61,7 @@ class RecipeImageMarker extends Component {
 
   state = {
     imageSelections: [],
-    showAnalysisHelperLayer: false,
+    showStep2_confirmImageCuts: false,
   }
 
   closeEditor() {
@@ -304,7 +318,7 @@ class RecipeImageMarker extends Component {
           {
             id: createId(),
             ...percentageCssValues,
-            inputValue: '',
+            inputValue: 'i,1',
           }
         ]
       }
@@ -449,11 +463,65 @@ class RecipeImageMarker extends Component {
           </div>
         </div>
 
-        <div className='analysis-helper-layer' style={{
-          ...(style.analysisHelperLayer),
-          display: this.state.showAnalysisHelperLayer ? 'block' : 'none'
+        <div className='showStep2_confirmImageCuts' style={{
+          ...(style.confirmImageCutsLayer),
+          display: this.state.showStep2_confirmImageCuts ? 'block' : 'none'
         }}>
-          <canvas ref={elem => this.setAnalysisHelperCanvas(elem)}></canvas>
+          <canvas hidden ref={elem => this.setAnalysisHelperCanvas(elem)}></canvas>
+
+          {this.state.imagePartsRead && <div style={{ padding: '3ex' }} className='list-imagecut-previews'>
+            <div style={style.topBtnBar}>
+              <button style={{ border: '1px solid #333', background: '#9a0f61'}} type='button'>Go back</button>
+              <button style={{ border: '1px solid #333', background: '#9a0f61'}} type='button'>Confirm Selections</button>
+            </div>
+            
+            <h2 style={{ color: 'yellow', 'font-size': '28px', 'font-weight': 500, 'padding-top': '80px' }}>
+              Please make sure that your cuts are proper. If not, go back and adapt.
+              <small style={{ 'display': 'block', 'font-size': '57%' }}>The sizes you see are just previews. These are not the actual cut sizes. Click on one to see the preview.</small>
+            </h2>
+
+            {(() => {
+              const splitupParts = [
+                {
+                  key: 'imagePartsIngredients',
+                  title: 'Ingredients',
+                },
+                {
+                  key: 'imagePartsDescriptionTexts',
+                  title: 'Description Texts',
+                }
+              ];
+
+              return splitupParts.map(({key, title}) => {
+                return (
+                  <div>
+                    <h3 style={{ color: 'white', 'font-size': '21px', 'font-weight': 'bold' }}>{title}</h3>
+                    {this.state[key].map(imagePart => {
+                      return (
+                        <div style={{ display: 'flex' }}>
+                          <img 
+                            alt=''
+                            src={imagePart.dataURL} style={{ 
+                              'max-width': '300px', 
+                              'border': '2px solid red', 
+                              'margin-bottom': '3ex',
+                              cursor: 'pointer', 
+                            }}
+                            onClick={() => openPreviewOfDataUrl(imagePart.dataURL)} 
+                          />
+                          <div style={{ color: 'white', 'padding-left': '4ex' }}>
+                            Group {imagePart.group}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })
+            })()}
+            
+            
+          </div>}
         </div>
       </div>
     );
@@ -465,7 +533,6 @@ class RecipeImageMarker extends Component {
 
   async readImagePart( selection, { originalHeight, originalWidth, imageRef } ) {
     return new Promise(res => {
-      console.log('sel', selection);
       const widthInPixels = Math.round((parseFloat(selection.width) / 100) * originalWidth);
       const heightInPixels = Math.round((parseFloat(selection.height) / 100) * originalHeight);
       const topInPixels = (parseFloat(selection.top) / 100) * originalHeight;
@@ -480,12 +547,12 @@ class RecipeImageMarker extends Component {
         ctx.clearRect(0, 0, widthInPixels, heightInPixels);
         ctx.drawImage(imageRef, leftInPixels, topInPixels, widthInPixels, heightInPixels, 0, 0, widthInPixels, heightInPixels);
 
-        res(c.toDataURL('image/jpeg', 0.7));
+        res(c.toDataURL('image/jpeg', 0.8));
       });
     });
   }
 
-  async readImageParts({ imageSelections, originalHeight, originalWidth, imageRef }) {
+  async splitUpImageIntoSelections({ imageSelections, originalHeight, originalWidth, imageRef }) {
     const imagePartsCollected = [];
 
     for (let i = 0; i < imageSelections.length; i++) {
@@ -494,16 +561,38 @@ class RecipeImageMarker extends Component {
 
       const dataURL = await this.readImagePart( imageSelections[i], { originalHeight, originalWidth, imageRef } );
 
-      imagePartsCollected.push({ dataURL, inputValue });
+      imagePartsCollected.push({
+        id: imageSelections[i].id,
+        dataURL, 
+        inputValue,
+      });
     }
 
     return imagePartsCollected;
   }
 
-  requestAnalysis() {
+  checkIfSelectionsHaveValidInputs() {
+    const rx = Rx.descOrIngredient;
+
     if (this.state.imageSelections.length === 0) {
       alert('You gotta make some selections on the image');
-      return;
+      return false;
+    }
+
+    let isValid = true;
+    this.state.imageSelections.forEach(({ inputValue }) => {
+      if (!(rx.test(inputValue))) {
+        alert(`"${inputValue}" is not a valid value, it should match ${rx}`);
+        isValid = false;
+      }
+    });
+
+    return isValid;
+  }
+
+  requestAnalysis() {
+    if (!this.checkIfSelectionsHaveValidInputs()) {
+      return false;
     }
 
     const c = this.analysisHelperCanvasElement;
@@ -511,18 +600,66 @@ class RecipeImageMarker extends Component {
     this.setState(prevState => {
       return {
         ...prevState,
-        showAnalysisHelperLayer: true,
+        showStep2_confirmImageCuts: true,
+        imagePartsRead: null,
       }
     });
 
     const { originalHeight, originalWidth, imageRef } = this.props.imageData;
-    this.readImageParts({
+    this.splitUpImageIntoSelections({
       imageSelections: this.state.imageSelections,
       originalHeight,
       originalWidth,
-      imageRef
+      imageRef,
     }).then(imagePartsRead => {
-      console.log('imagePartsRead', imagePartsRead);
+      // before we pull em in the state we want to order them by ingredient/steps
+      // and then each of them by their group number
+
+      const _imagePartsRead = imagePartsRead.map( imagePart => {
+        const matched = imagePart.inputValue.match(Rx.groupNumberMatcher);
+        let group = matched ? matched[1] : 0;
+        return {
+          ...imagePart,
+          group,
+        }
+      });
+
+      const ingredientRx = Rx.ingredient;
+
+      const imagePartsIngredients = _imagePartsRead.filter(({ inputValue }) => {
+        return ingredientRx.test(inputValue);
+      });
+
+      const imagePartsDescriptionTexts = _imagePartsRead.filter(({ inputValue }) => {
+        return !ingredientRx.test(inputValue);
+      });
+
+      this.setState(prevState => {
+        return {
+          ...prevState,
+          imagePartsRead: true,
+          imagePartsIngredients,
+          imagePartsDescriptionTexts,
+        }
+      });
+
+      /*const isIngredient = true;
+      const formData = new FormData();
+      formData.append('language', 'ger');
+      formData.append('apikey', '');
+      formData.append('base64Image', imagePartsRead[0].dataURL);
+      formData.append('isTable', isIngredient);
+
+      fetch('https://api.ocr.space/parse/image', {
+        method: 'POST',
+        mode: 'cors',
+        cache: 'no-cache',
+        body: formData
+      })
+      .then((response) => response.json())
+      .then(jsonResult => {
+        console.log('sis is se result', jsonResult);
+      });*/
     })
   }
 }
@@ -627,7 +764,7 @@ const style = {
     'border': '0',
     'outline': 'none',
   },
-  analysisHelperLayer: {
+  confirmImageCutsLayer: {
     position: 'fixed',
     top: 0,
     left: 0,
@@ -635,6 +772,17 @@ const style = {
     right: 0,
     'z-index': '22',
     background: 'rgba(0,0,0,0.9)',
+    'overflow-y': 'scroll',
+  },
+  topBtnBar: {
+    display: 'flex', 
+    background: 'black',
+    'border-bottom': '1px solid grey',
+    position: 'fixed',
+    top: '0',
+    left: 0,
+    width: '100%',
+    padding: '1.5ex 3ex',
   }
 }
 
@@ -644,7 +792,6 @@ style.selection = {
   'display': 'block',
   'box-shadow': '1px 1px 3px rgba(0,0,0,0.2)',
 };
-
 
 
 export default RecipeImageMarker;
