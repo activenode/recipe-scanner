@@ -75,6 +75,7 @@ class RecipeImageMarker extends Component {
     imageSelections: [],
     showStep2_confirmImageCuts: false,
     isOcrStep: false,
+    isOcrDone: false,
   }
 
   closeEditor() {
@@ -462,6 +463,7 @@ class RecipeImageMarker extends Component {
             return {
               ...imagePart,
               ocrResult,
+              textAfterOcr: ocrResult.ParsedText,
             };
           })
         })).then( imagePartsWithOcrResults => {
@@ -484,12 +486,34 @@ class RecipeImageMarker extends Component {
       }, {});
     }).then( flattenedResult => {
       this.setState(prevState => {
-
         return {
           ...prevState,
+          ...flattenedResult,
+          isOcrDone: true,
         };
       })
     })
+  }
+
+  changeTextareaValueAfterOcr(evt, { key: keyInState, id: imagePartId }) {
+    evt.preventDefault();
+
+    this.setState(prevState => {
+      const newValueOfKeyInState = prevState[keyInState].map( imagePart => {
+        if (imagePart.id !== imagePartId) {
+          return imagePart;
+        }
+
+        return {
+          ...imagePart
+        };
+      });
+      
+      return {
+        ...prevState,
+        [keyInState]: newValueOfKeyInState,
+      }
+    });
   }
 
   render() {
@@ -553,9 +577,12 @@ class RecipeImageMarker extends Component {
               {!this.state.isOcrStep && <button 
                 onClick={e => this.goToOcrStep(e)}
                 style={{ border: '1px solid #333', background: '#49a96c', 'cursor': 'pointer'}} type='button'>Confirm Selections</button>}
-              {this.state.isOcrStep && <button 
+              {this.state.isOcrStep && !this.state.isOcrDone && <button 
                 disabled={true}
                 style={{ border: '1px solid #333', background: 'grey'}} type='button'>Processing...</button>}
+              {this.state.isOcrStep && this.state.isOcrDone && <button 
+                onClick={e => this.finalConfirmTextsAfterOcr(e)}
+                style={{ border: '1px solid #333', background: '#49a96c', 'cursor': 'pointer'}} type='button'>Confirm</button>}
             </div>
             
             {!this.state.isOcrStep && <h2 style={{ color: 'yellow', 'font-size': '28px', 'font-weight': 500, 'padding-top': '0' }}>
@@ -572,17 +599,24 @@ class RecipeImageMarker extends Component {
                     {this.state[key].map(imagePart => {
                       return (
                         <div style={{ display: 'flex', 'background': '#313131bd', padding: '2ex' }}>
-                          <img 
-                            alt=''
-                            src={imagePart.dataURL} style={{ 
-                              'max-width': '300px', 
-                              'border': '2px solid red', 
-                              cursor: 'pointer', 
-                            }}
-                            onClick={() => openPreviewOfDataUrl(imagePart.dataURL)} 
-                          />
-                          <div style={{ color: 'white', 'padding-left': '4ex' }}>
-                            Group {imagePart.group}
+                          <div>
+                            <img 
+                              alt=''
+                              src={imagePart.dataURL} style={{ 
+                                'max-width': '300px', 
+                                'border': '2px solid red', 
+                                cursor: 'pointer', 
+                              }}
+                              onClick={() => openPreviewOfDataUrl(imagePart.dataURL)} 
+                            />
+                          </div>
+                          <div style={{ color: 'white', 'padding-left': '4ex', 'flex-grow': '2' }}>
+                            <div>Group {imagePart.group}</div>
+                            {imagePart.textAfterOcr && 
+                              <textarea 
+                                style={style.textareaForOcrText}
+                                value={imagePart.textAfterOcr}
+                                onInput={e => this.changeTextareaValueAfterOcr(e, { key, id: imagePart.id })}></textarea>}
                           </div>
                         </div>
                       );
@@ -859,6 +893,10 @@ const style = {
     left: 0,
     width: '100%',
     padding: '1.5ex 3ex',
+  },
+  textareaForOcrText: {
+    width: '100%',
+    height: '150px',
   }
 }
 
