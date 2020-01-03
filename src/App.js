@@ -22,10 +22,8 @@ const RecipeIngredientSkeleton = {
 const RecipeSkeleton = {
   id: createId(),
   title: '',
-  ingredients: [{
-    ...RecipeIngredientSkeleton
-  }],
-  steps: [RecipeStepSkeleton()]
+  ingredients: [],
+  steps: []
 }
 
 class App extends Component {
@@ -163,7 +161,7 @@ class App extends Component {
 
                     <div>
                       <button type="button" onClick={e => this.onAddStep(id)}>+ Step</button> &nbsp; &nbsp;
-                      { steps.length > 1 && <button type="button" onClick={e => this.removeLastStep(id)}>Remove last step</button>}
+                      { steps.length > 0 && <button type="button" onClick={e => this.removeLastStep(id)}>Remove last step</button>}
                     </div>
                   </div>
                 </div>

@@ -505,7 +505,8 @@ class RecipeImageMarker extends Component {
         }
 
         return {
-          ...imagePart
+          ...imagePart,
+          textAfterOcr: evt.target.value,
         };
       });
       
@@ -514,6 +515,100 @@ class RecipeImageMarker extends Component {
         [keyInState]: newValueOfKeyInState,
       }
     });
+  }
+
+  cancelAfterOcr(e) {
+    e.preventDefault();
+
+    this.setState(prevState => {
+      return {
+        ...prevState,
+        isOcrStep: false,
+        isOcrDone: false,
+      }
+    })
+  }
+
+  finalConfirmTextsAfterOcr(e) {
+    e.preventDefault();
+
+    const groupsToReturn = [];
+    const highestNumberUsed = [
+      ...(this.state.imagePartsDescriptionTexts),
+      ...(this.state.imagePartsIngredients),
+    ].reduce((highestGroupNumber, { group }) => {
+      return group > highestGroupNumber ? group : highestGroupNumber;
+    }, 0);
+
+    for (let i=0; i <= highestNumberUsed; i++) {
+      const currGroupNumberIteration = `${i + 1}`;
+      const thisGroup = { 
+        ingredients: [],
+        steps: []
+      };
+
+      let groupHasEntries = false;
+
+      const ingredients = this.state.imagePartsIngredients.filter(({ group }) => group === currGroupNumberIteration);
+      const descriptionSteps = this.state.imagePartsDescriptionTexts.filter(({ group }) => group === currGroupNumberIteration);
+
+      if (ingredients.length > 0 || descriptionSteps.length > 0) {
+        groupHasEntries = true;
+      }
+
+      // step = { text }
+      // ingredient = { unit, amount, name, id }
+      thisGroup.ingredients = ingredients.reduce((collectedIngredients, { textAfterOcr }) => {
+        const ingredientLines = textAfterOcr
+          .split("\n")
+          .map(s => s.replace(/[\s]{2,}/, ' ').trim())
+          .filter(s => s !== '');
+
+        const xPieceOfName = /^[\d]+[\s][\w]+$/i; // e.g. 1 Egg
+        const xPieceOfNameWithUnitAttached = /^([\d]+)([\w]+) (.+)$/i; // e.g. 1kg tomatoes
+        // next is: e.g. 1 kg tomatoes
+        const xPieceOfNameWithUnitSpaced = /^([\d]+) (EL|TL|Prise|kg|g|grams|pc|Stück|gramm|gram|pound|t|tsp|oz|cup|Tasse|ml|l|dl|mg|lb|cm|m|mm|inch) (.+)$/i;
+
+        return collectedIngredients.concat( ingredientLines.map( line => {
+          console.log('line =', line);
+          let 
+            amount = '',
+            unit = '',
+            name = '',
+            id = createId();
+          
+          if (xPieceOfName.test(line)) {
+            ([ amount, name ] = line.split(' '));
+          } else if (xPieceOfNameWithUnitSpaced.test(line)) {
+            console.log('line matched (xPieceOfNameWithUnitSpaced)', line);
+            ([ , amount, unit, name ] = line.match(xPieceOfNameWithUnitSpaced));
+          } else if (xPieceOfNameWithUnitAttached.test(line)) {
+            console.log('line matched (xPieceOfNameWithUnitAttached)', line, ';;', line.match(xPieceOfNameWithUnitAttached));
+            ([ , amount, unit, name ] = line.match(xPieceOfNameWithUnitAttached));
+          }
+
+          return {
+            amount,
+            unit,
+            name,
+            id,
+          }
+        }) )
+      }, []);
+
+      thisGroup.steps = descriptionSteps.map( imagePartsDescriptionTexts => {
+        console.log('imagePartsDescriptionTexts', imagePartsDescriptionTexts);
+      });
+
+      if (groupHasEntries) {
+        groupsToReturn.push(thisGroup);
+      }
+
+      console.log('group', currGroupNumberIteration, '---', ingredients, descriptionSteps);
+    }
+
+    console.log('highest', highestNumberUsed);
+    // we need to put them into respective groups now!
   }
 
   render() {
@@ -580,6 +675,9 @@ class RecipeImageMarker extends Component {
               {this.state.isOcrStep && !this.state.isOcrDone && <button 
                 disabled={true}
                 style={{ border: '1px solid #333', background: 'grey'}} type='button'>Processing...</button>}
+              {this.state.isOcrStep && this.state.isOcrDone && <button 
+                onClick={e => this.cancelAfterOcr(e)}
+                style={{ border: '1px solid #333', background: '#9a0f61', 'cursor': 'pointer' }} type='button'>Cancel</button>}
               {this.state.isOcrStep && this.state.isOcrDone && <button 
                 onClick={e => this.finalConfirmTextsAfterOcr(e)}
                 style={{ border: '1px solid #333', background: '#49a96c', 'cursor': 'pointer'}} type='button'>Confirm</button>}
@@ -700,8 +798,6 @@ class RecipeImageMarker extends Component {
     if (!this.checkIfSelectionsHaveValidInputs()) {
       return false;
     }
-
-    const c = this.analysisHelperCanvasElement;
 
     this.setState(prevState => {
       return {
