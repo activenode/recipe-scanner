@@ -1,11 +1,7 @@
 import { Component } from 'inferno';
 import { nextFrame } from '../lib/frame';
+import { createId } from '../lib/createId';
 import { ocrByBase64Image } from '../lib/ocr';
-
-var createId = function () {
-  const t = +(new Date());
-  return '_' + Math.random().toString(36).substr(2, 9) + '_' + t;
-};
 
 function openPreviewOfDataUrl(dataURL) {
   var image = new Image();
@@ -76,6 +72,7 @@ class RecipeImageMarker extends Component {
     showStep2_confirmImageCuts: false,
     isOcrStep: false,
     isOcrDone: false,
+    imageCut: null,
   }
 
   closeEditor() {
@@ -541,7 +538,7 @@ class RecipeImageMarker extends Component {
     }, 0);
 
     for (let i=0; i <= highestNumberUsed; i++) {
-      const currGroupNumberIteration = `${i + 1}`;
+      const currGroupNumberIteration = i;
       const thisGroup = { 
         ingredients: [],
         steps: []
@@ -549,8 +546,8 @@ class RecipeImageMarker extends Component {
 
       let groupHasEntries = false;
 
-      const ingredients = this.state.imagePartsIngredients.filter(({ group }) => group === currGroupNumberIteration);
-      const descriptionSteps = this.state.imagePartsDescriptionTexts.filter(({ group }) => group === currGroupNumberIteration);
+      const ingredients = this.state.imagePartsIngredients.filter(({ group }) => `${group}` === `${currGroupNumberIteration}`);
+      const descriptionSteps = this.state.imagePartsDescriptionTexts.filter(({ group }) => `${group}` === `${currGroupNumberIteration}`);
 
       if (ingredients.length > 0 || descriptionSteps.length > 0) {
         groupHasEntries = true;
@@ -564,26 +561,26 @@ class RecipeImageMarker extends Component {
           .map(s => s.replace(/[\s]{2,}/, ' ').trim())
           .filter(s => s !== '');
 
+        const justTheName = /^[^\d]+/i;
         const xPieceOfName = /^[\d]+[\s][\w]+$/i; // e.g. 1 Egg
         const xPieceOfNameWithUnitAttached = /^([\d]+)([\w]+) (.+)$/i; // e.g. 1kg tomatoes
         // next is: e.g. 1 kg tomatoes
         const xPieceOfNameWithUnitSpaced = /^([\d]+) (EL|TL|Prise|kg|g|grams|pc|Stück|gramm|gram|pound|t|tsp|oz|cup|Tasse|ml|l|dl|mg|lb|cm|m|mm|inch) (.+)$/i;
 
         return collectedIngredients.concat( ingredientLines.map( line => {
-          console.log('line =', line);
           let 
             amount = '',
             unit = '',
             name = '',
             id = createId();
           
-          if (xPieceOfName.test(line)) {
+          if (justTheName.test(line)) {
+            name = line;
+          } else if (xPieceOfName.test(line)) {
             ([ amount, name ] = line.split(' '));
           } else if (xPieceOfNameWithUnitSpaced.test(line)) {
-            console.log('line matched (xPieceOfNameWithUnitSpaced)', line);
             ([ , amount, unit, name ] = line.match(xPieceOfNameWithUnitSpaced));
           } else if (xPieceOfNameWithUnitAttached.test(line)) {
-            console.log('line matched (xPieceOfNameWithUnitAttached)', line, ';;', line.match(xPieceOfNameWithUnitAttached));
             ([ , amount, unit, name ] = line.match(xPieceOfNameWithUnitAttached));
           }
 
@@ -596,18 +593,35 @@ class RecipeImageMarker extends Component {
         }) )
       }, []);
 
-      thisGroup.steps = descriptionSteps.map( imagePartsDescriptionTexts => {
-        console.log('imagePartsDescriptionTexts', imagePartsDescriptionTexts);
+      thisGroup.steps = descriptionSteps.map( imagePartsDescriptionText => {
+        return {
+          id: createId(),
+          text: imagePartsDescriptionText.textAfterOcr,
+        }
       });
 
       if (groupHasEntries) {
         groupsToReturn.push(thisGroup);
       }
-
-      console.log('group', currGroupNumberIteration, '---', ingredients, descriptionSteps);
     }
 
-    console.log('highest', highestNumberUsed);
+    console.log('this111', this.state.imageCut);
+
+    this.setState(prevState => {
+      return {
+        ...prevState,
+        showStep2_confirmImageCuts: false,
+        isOcrStep: false,
+        isOcrDone: false,
+      };
+    })
+
+    this.props.onImageAnalysisDone(groupsToReturn.map(groupObj => {
+      return {
+        ...groupObj,
+        id: createId(),
+      }
+    }), this.state.imageCut);
     // we need to put them into respective groups now!
   }
 
@@ -687,6 +701,19 @@ class RecipeImageMarker extends Component {
               Please make sure that your cuts are proper. If not, go back and adapt.
               <small style={{ 'display': 'block', 'font-size': '57%' }}>The sizes you see are just previews. These are not the actual cut sizes. Click on one to see the preview.</small>
             </h2>}
+
+            {this.state.imageCut && <div>
+              <h3 style={{ color: 'white', 'font-size': '19px', 'font-weight': 'bold' }}>Preview Image of Recipe</h3>}
+                <img 
+                  alt=''
+                  src={this.state.imageCut.dataURL} style={{ 
+                    'max-width': '270px', 
+                    'border': '2px solid red', 
+                    cursor: 'pointer', 
+                  }}
+                  onClick={() => openPreviewOfDataUrl(this.state.imageCut.dataURL)} 
+                />
+              </div>}
 
             {(() => {
               return splitupParts.map(({key, title}) => {
@@ -785,7 +812,7 @@ class RecipeImageMarker extends Component {
 
     let isValid = true;
     this.state.imageSelections.forEach(({ inputValue }) => {
-      if (!(rx.test(inputValue))) {
+      if (!(rx.test(inputValue)) && inputValue !== 'img') {
         alert(`"${inputValue}" is not a valid value, it should match ${rx}`);
         isValid = false;
       }
@@ -816,6 +843,11 @@ class RecipeImageMarker extends Component {
     }).then(imagePartsRead => {
       // before we pull em in the state we want to order them by ingredient/steps
       // and then each of them by their group number
+
+      const imagePartsImgOnly = imagePartsRead.filter(({ inputValue }) => inputValue === 'img');
+      const imageCut = imagePartsImgOnly.length > 0 ? imagePartsImgOnly[0] : null;
+
+      imagePartsRead = imagePartsRead.filter(({ inputValue }) => inputValue !== 'img')
 
       const _imagePartsRead = imagePartsRead.map( imagePart => {
         const matched = imagePart.inputValue.match(Rx.groupNumberMatcher);
@@ -863,6 +895,7 @@ class RecipeImageMarker extends Component {
           imagePartsRead: true,
           imagePartsIngredients,
           imagePartsDescriptionTexts,
+          imageCut,
         }
       });
     })

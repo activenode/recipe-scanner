@@ -1,11 +1,7 @@
 import { Component } from 'inferno';
 import Dropzone from './components/Dropzone';
 import RecipeImageMarker from './components/RecipeImageMarker';
-
-var createId = function () {
-  const t = +(new Date());
-  return '_' + Math.random().toString(36).substr(2, 9) + '_' + t;
-};
+import { createId } from './lib/createId';
 
 const RecipeStepSkeleton = () => ({
   text: 'Just a step',
@@ -28,7 +24,6 @@ const RecipeSkeleton = {
 
 class App extends Component {
   state = {
-    showRecipeImageMarker: false,
     recipe_title: '',
     recipeParts: [{
       ...RecipeSkeleton
@@ -99,13 +94,44 @@ class App extends Component {
     });
   }
 
+  updateInputValue(recipePartId, ingredientId, ingredientProperty, keyEvent) {
+    this.setState(prevState => {
+      const newRecipeParts = prevState.recipeParts.map( recipePart => {
+        if (recipePart.id !== recipePartId) {
+          return recipePart;
+        } 
+
+        const theIngredients = recipePart.ingredients.map( ingredientObj => {
+          if (ingredientObj.id !== ingredientId) {
+            return ingredientObj;
+          }
+
+          return {
+            ...ingredientObj,
+            [ingredientProperty]: keyEvent.target.value,
+          }
+        });
+
+        return {
+          ...recipePart,
+          ingredients: theIngredients,
+        }
+      });
+
+      return {
+        ...prevState,
+        recipeParts: newRecipeParts,
+      }
+    })
+  }
+
   render() {
     return (
       <Dropzone onDrop={(fileHandle) => this.onFileDropped(fileHandle)}>
         { this.state.image.showEditor &&
           <RecipeImageMarker 
             imageData={this.state.image} 
-            onImageAnalysisDone={this.onImageAnalysisDone}
+            onImageAnalysisDone={(arr, imageCut) => this.onImageAnalysisDone(arr, imageCut)}
             onClickClose={e => this.onClickCloseEditor()} />}
         
         <form>
@@ -137,9 +163,20 @@ class App extends Component {
                     { ingredients.map(({ unit, amount, name, id: ingredientId }) => {
                       return (
                         <div className="ingredient-entry">
-                          <input type="text" value={amount} style={{ 'max-width': '80px' }} />
-                          <input type="text" value={unit} style={{ 'max-width': '80px' }} />
-                          <input type="text" value={name} />
+                          <input 
+                            type="text"
+                            value={amount} 
+                            onInput={e => this.updateInputValue(recipePartId, ingredientId, 'amount', e)} 
+                            style={{ 'max-width': '80px' }} />
+                          <input 
+                            type="text"
+                            value={unit}
+                            onInput={e => this.updateInputValue(recipePartId, ingredientId, 'unit', e)}
+                            style={{ 'max-width': '80px' }} />
+                          <input 
+                            type="text"
+                            value={name}
+                            onInput={e => this.updateInputValue(recipePartId, ingredientId, 'name', e)} />
                           <button type="button" style={{ 'flex-shrink': '10' }} onClick={e => this.removeIngredient(recipePartId, ingredientId)}>x</button>
                         </div>
                       )
@@ -301,8 +338,40 @@ class App extends Component {
     })
   }
 
-  onImageAnalysisDone(e) {
-    console.log('onImageAnalysisDone', e);
+  onImageAnalysisDone(groupsCollected, imageCutObj) {
+    console.log('args', arguments);
+    this.setState(prevState => {
+      const image = prevState.image;
+
+      const newImageObj = !image ? image : {
+        ...image,
+        showEditor: false,
+      };
+
+      return {
+        ...prevState,
+        recipeParts: groupsCollected,
+        image: newImageObj,
+        imageCutObj,
+      }
+    })
+
+    console.log('this.state', this.state);
+  }
+
+  processForDatabase() {
+    const sampleRecipeObj = {
+      ingredientBoxes: [{
+        ingredients: [ /* ... */ ]
+      }],
+      descriptionBoxes: [{
+        text: '',
+        isGlobalDescription: true, 
+        // isGlobalDescription = true means that this recipe description is valid across all ingredients
+      }]
+    }
+
+
   }
 }
 
