@@ -605,8 +605,6 @@ class RecipeImageMarker extends Component {
       }
     }
 
-    console.log('this111', this.state.imageCut);
-
     this.setState(prevState => {
       return {
         ...prevState,

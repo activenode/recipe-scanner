@@ -6,6 +6,7 @@ import { createId } from './lib/createId';
 const RecipeStepSkeleton = () => ({
   text: 'Just a step',
   id: createId(),
+  title: '',
 });
 
 const RecipeIngredientSkeleton = {
@@ -125,6 +126,39 @@ class App extends Component {
     })
   }
 
+  updateRecipeTitle(e) {
+    e.preventDefault();
+
+    this.setState(prevState => {
+      return {
+        ...prevState,
+        recipe_title: e.target.value,
+      }
+    })
+  }
+
+  updateRecipePartTitle(recipePartId, e) {
+    e.preventDefault();
+
+    this.setState(prevState => {
+      const recipeParts = prevState.recipeParts.map( recipePart => {
+        if (recipePart.id === recipePartId) {
+          return {
+            ...recipePart,
+            title: e.target.value,
+          }
+        } else {
+          return recipePart;
+        }
+      });
+
+      return {
+        ...prevState,
+        recipeParts,
+      }
+    })
+  }
+
   render() {
     return (
       <Dropzone onDrop={(fileHandle) => this.onFileDropped(fileHandle)}>
@@ -137,7 +171,11 @@ class App extends Component {
         <form>
           <fieldset>
             <div className="inputbox">
-              <input placeholder='Main Title of the recipe' type="text" name="recipe_title" />
+              <input 
+                onInput={e => this.updateRecipeTitle(e)}
+                placeholder='Main Title of the recipe' 
+                type="text" 
+                name="recipe_title" />
             </div>
 
 
@@ -152,6 +190,7 @@ class App extends Component {
                     type="text" 
                     name="recipe_title" 
                     value={ title }
+                    onInput={e => this.updateRecipePartTitle(recipePartId, e)} 
                   />
                   <small style={{
                     display: 'block',
@@ -210,6 +249,9 @@ class App extends Component {
             </div>
             
           </fieldset>
+          <div style={style.ctaBtnHolder}>
+            <button onClick={e => this.saveNow(e)} type="button">save</button>
+          </div>
         </form>
       </Dropzone>
     );
@@ -339,7 +381,6 @@ class App extends Component {
   }
 
   onImageAnalysisDone(groupsCollected, imageCutObj) {
-    console.log('args', arguments);
     this.setState(prevState => {
       const image = prevState.image;
 
@@ -350,28 +391,72 @@ class App extends Component {
 
       return {
         ...prevState,
-        recipeParts: groupsCollected,
+        recipeParts: groupsCollected.map(group => {
+          return {
+            ...group,
+            title: group.title ? group.title : '',
+          }
+        }),
         image: newImageObj,
-        imageCutObj,
+        previewImage: imageCutObj,
       }
-    })
+    });
+  }
 
-    console.log('this.state', this.state);
+  saveNow(event) {
+    event.preventDefault();
+
+    const { recipe_title } = this.state;
+
+    if (!recipe_title) {
+      alert('please provide a recipe title');
+    } else {
+      const processedData = this.processForDatabase();
+
+      console.log('processedData', processedData);
+    }
   }
 
   processForDatabase() {
-    const sampleRecipeObj = {
-      ingredientBoxes: [{
-        ingredients: [ /* ... */ ]
-      }],
-      descriptionBoxes: [{
-        text: '',
-        isGlobalDescription: true, 
-        // isGlobalDescription = true means that this recipe description is valid across all ingredients
-      }]
-    }
+    const { recipe_title, recipeParts } = this.state;
+
+    console.log('state', this.state);
+
+    let recipeObj = {
+      title: recipe_title,
+      previewImage: (this.state.previewImage) ? {
+        dataURL: this.state.previewImage.dataURL
+      } : false,
+      groups: recipeParts.map( groupObj => {
+        let group = {};
+        if (groupObj.ingredients.length > 0) {
+          group.ingredients = groupObj.ingredients;
+        }
+
+        if (groupObj.steps.length > 0) {
+          group.steps = groupObj.steps;
+        }
+
+        if (groupObj.title) {
+          group.title = groupObj.title;
+        }
+
+        return group;
+      }),
+    };
+    
+    return recipeObj;
+  }
+}
 
 
+const style = {
+  ctaBtnHolder: {
+    position: 'fixed',
+    top: '1ex',
+    left: '1ex',
+    padding: '1ex',
+    background: 'rgba(255, 255, 255, 0.7)',
   }
 }
 

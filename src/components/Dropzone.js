@@ -46,7 +46,8 @@ class Dropzone extends Component {
 
 const styles = {
   dropzone: {
-    'width': '100%',
+    'width': 'calc(100% - 100px)',
+    'margin-left': '100px',
     'min-height': '100vh'
   },
   dragoverLayer: {
