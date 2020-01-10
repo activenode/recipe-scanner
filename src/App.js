@@ -23,9 +23,14 @@ const RecipeSkeleton = {
   steps: []
 }
 
+function isFileImage(file) {
+  return /^image.*/.test(file.type);
+}
+
 class App extends Component {
   state = {
     recipe_title: '',
+    recipe_tags: '',
     recipeParts: [{
       ...RecipeSkeleton
     }], 
@@ -40,45 +45,71 @@ class App extends Component {
 
   onFileDropped(fileHandle) {
     const files = fileHandle.files;
-    if (files.length > 1) {
-      alert('Cannot process multiple images at the same time, sorry');
+    const allFilesImages = [...files].every(file => isFileImage(file));
+
+    if (!allFilesImages) {
+      alert('Please drop image files only');
       return;
     }
 
-    const file = fileHandle.files[0];
+    // we need to combine all files to one image in the case that it could be more than one file
+    Promise.all([...files].map( file => {
+      return new Promise(res => {
+        const fileReader = new FileReader();
+        fileReader.onload = function(fileReaderResult) {
+          const img = new Image();
+          img.onload = function() {
+            res(img);
+          }
 
-    const isImageType = /^image.*/.test(file.type);
+          img.src = fileReaderResult.target.result;
+        }
 
-    if (!isImageType) {
-      alert('Please drop an image');
-      return;
-    }
+        fileReader.readAsDataURL(file);
+      })
+    })).then(allImages => {
+      const maxWidth = allImages.reduce((maxWidth, img) => {
+        if (maxWidth < img.width) {
+          return img.width;
+        }
 
-    const _this = this;
-    const fileReader = new FileReader();
-    fileReader.onload = readingResult => {
-      const img = new Image();
-      img.onload = function() {
-        const { width, height } = this;
- 
-        _this.setState(prevState => {
+        return maxWidth;
+      }, 0);
+
+      const totalHeight = allImages.reduce((totalHeight, img) => {
+        return totalHeight + img.height;
+      }, 0);
+      
+      const c = document.createElement('canvas');
+      c.width = maxWidth;
+      c.height = totalHeight;
+      const ctx = c.getContext('2d');
+
+      let offsetY = 0;
+
+      allImages.forEach(img => {
+        ctx.drawImage(img, 0, 0, img.width, img.height, 0, offsetY, img.width, img.height);
+        offsetY += img.height;
+      })
+
+      const resultingImageDataURL = c.toDataURL('image/jpeg', 1);
+      const resultingImageRef = new Image();
+      resultingImageRef.onload = () => {
+        this.setState(prevState => {
           return {
             ...prevState,
             image: {
               id: createId(),
-              imageRef: img,
+              imageRef: resultingImageRef,
               showEditor: true,
-              originalWidth: width,
-              originalHeight: height,
+              originalWidth: maxWidth,
+              originalHeight: totalHeight,
             }
           }
         })
       }
-      img.src = readingResult.target.result;
-      
-    };
-
-    fileReader.readAsDataURL(file);
+      resultingImageRef.src = resultingImageDataURL;
+    })
   }
 
   onClickCloseEditor() {
@@ -137,6 +168,17 @@ class App extends Component {
     })
   }
 
+  updateTags(e) {
+    e.preventDefault();
+
+    this.setState(prevState => {
+      return {
+        ...prevState,
+        recipe_tags: e.target.value,
+      }
+    })
+  }
+
   updateRecipePartTitle(recipePartId, e) {
     e.preventDefault();
 
@@ -175,7 +217,17 @@ class App extends Component {
                 onInput={e => this.updateRecipeTitle(e)}
                 placeholder='Main Title of the recipe' 
                 type="text" 
+                value={this.state.recipe_title}
                 name="recipe_title" />
+            </div>
+
+            <div className="inputbox">
+              <input 
+                onInput={e => this.updateTags(e)}
+                placeholder='tags, comma-separated' 
+                value={this.state.recipe_tags}
+                type="text" 
+                name="recipe_tags" />
             </div>
 
 
@@ -413,28 +465,50 @@ class App extends Component {
     } else {
       const processedData = this.processForDatabase();
 
-      console.log('processedData', processedData);
+      fetch('http://localhost:3100', {
+        method: 'post',
+        body: JSON.stringify(processedData),
+        mode: 'no-cors',
+      }).then(function(response) {
+        return response.json();
+      }).then(function(data) {
+        
+      });
     }
   }
 
   processForDatabase() {
-    const { recipe_title, recipeParts } = this.state;
+    const { recipe_title, recipeParts, recipe_tags } = this.state;
 
-    console.log('state', this.state);
+    const processedRecipeTags = recipe_tags.split(',').map(tag => {
+      return tag.trim();
+    });
 
     let recipeObj = {
       title: recipe_title,
+      tags: processedRecipeTags,
       previewImage: (this.state.previewImage) ? {
         dataURL: this.state.previewImage.dataURL
       } : false,
       groups: recipeParts.map( groupObj => {
         let group = {};
         if (groupObj.ingredients.length > 0) {
-          group.ingredients = groupObj.ingredients;
+          group.ingredients = groupObj.ingredients.map(ingredientObj => {
+            const newIngredientObj = {
+              ...ingredientObj
+            };
+
+            delete newIngredientObj.id;
+            return newIngredientObj;
+          });
         }
 
         if (groupObj.steps.length > 0) {
-          group.steps = groupObj.steps;
+          group.steps = groupObj.steps.map(stepObj => {
+            const newStepObj = { ...stepObj };
+            delete newStepObj.id;
+            return newStepObj;
+          });
         }
 
         if (groupObj.title) {

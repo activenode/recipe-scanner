@@ -1,0 +1,14 @@
+{
+  "name": "bridge",
+  "version": "1.0.0",
+  "description": "The bridge between database and client",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "David Lorenz <info@activenode.de>",
+  "license": "MIT",
+  "dependencies": {
+    "mongodb": "^3.4.1"
+  }
+}
