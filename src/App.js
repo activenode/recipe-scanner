@@ -207,7 +207,7 @@ class App extends Component {
         { this.state.image.showEditor &&
           <RecipeImageMarker 
             imageData={this.state.image} 
-            onImageAnalysisDone={(arr, imageCut) => this.onImageAnalysisDone(arr, imageCut)}
+            onImageAnalysisDone={(arr, imageCut, recipe_title) => this.onImageAnalysisDone(arr, imageCut, recipe_title)}
             onClickClose={e => this.onClickCloseEditor()} />}
         
         <form>
@@ -432,7 +432,7 @@ class App extends Component {
     })
   }
 
-  onImageAnalysisDone(groupsCollected, imageCutObj) {
+  onImageAnalysisDone(groupsCollected, imageCutObj, recipe_title) {
     this.setState(prevState => {
       const image = prevState.image;
 
@@ -440,6 +440,8 @@ class App extends Component {
         ...image,
         showEditor: false,
       };
+
+      console.log('recipe_title', recipe_title);
 
       return {
         ...prevState,
@@ -451,6 +453,7 @@ class App extends Component {
         }),
         image: newImageObj,
         previewImage: imageCutObj,
+        recipe_title,
       }
     });
   }
@@ -468,9 +471,9 @@ class App extends Component {
       fetch('http://localhost:3100', {
         method: 'post',
         body: JSON.stringify(processedData),
-        mode: 'no-cors',
+        mode: 'cors',
       }).then(function(response) {
-        return response.json();
+        console.log('resp', response);
       }).then(function(data) {
         
       });
